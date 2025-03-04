@@ -1,9 +1,8 @@
-from time import sleep
 import logging
 import asyncio
 
-from driver.VaemDriver import vaemDriver
-from driver.dataTypes import VaemConfig
+from vaem.VaemDriver import vaemDriver
+from vaem.dataTypes import VaemConfig
 
 
 if __name__ == "__main__":

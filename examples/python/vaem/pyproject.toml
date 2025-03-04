@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "vaem"
+version = "0.0.2"
+description = "Software for controlling the VAEM Festo valve control module"
+authors = ["Festo <milen.kolev@festo.com>"]
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/Festo-se/VAEM"
+keywords = ["VAEM", "liquid handler", "festo"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<4.0"
+pymodbus = ">=2.5.0"
+
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/Festo-se/VAEM/issues"

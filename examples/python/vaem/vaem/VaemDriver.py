@@ -11,8 +11,8 @@ import logging
 from pymodbus.client import ModbusTcpClient as TcpClient
 import struct
 
-from driver.dataTypes import VaemConfig
-from driver.vaemHelper import *
+from vaem.dataTypes import VaemConfig
+from vaem.vaemHelper import *
 
 readParam = {
     'address' : 0,
@@ -143,7 +143,7 @@ class vaemDriver():
                 frame = _construct_frame(data)
                 self._transfer(frame)
             else:
-                self._log.error(f'opening time must be in range 0-2000 and valve_id -> 0-8')
+                self._log.error('opening time must be in range 0-2000 and valve_id -> 0-8')
                 raise ValueError
         else:
             self._log.warning("No VAEM Connected!!")
@@ -171,7 +171,7 @@ class vaemDriver():
                 frame = _construct_frame(data)
                 self._transfer(frame)
             else:
-                self._log.error(f'opening time must be in range 0-2000 and valve_id -> 1-8')
+                self._log.error('opening time must be in range 0-2000 and valve_id -> 1-8')
                 raise ValueError
         else:
             self._log.warning("No VAEM Connected!!")
@@ -185,7 +185,7 @@ class vaemDriver():
                 frame = _construct_frame(data)
                 self._transfer(frame)
             else:
-                self._log.error(f'opening time must be in range 0-2000 and valve_id -> 1-8')
+                self._log.error('opening time must be in range 0-2000 and valve_id -> 1-8')
                 raise ValueError
         else:
             self._log.warning("No VAEM Connected!!")
