@@ -1,5 +1,4 @@
 import logging
-import asyncio
 
 from vaem.VaemDriver import vaemDriver
 from vaem.dataTypes import VaemConfig
@@ -12,17 +11,16 @@ if __name__ == "__main__":
         vaem = vaemDriver(vaemConfig, logger=logging)
     except Exception as e:
         print(e)
-    async def func():
-        vaem.init()
+    def func():
+        vaem._vaem_init()
         print(vaem.read_status())
-        await vaem.select_valve(3)
+        vaem.select_valve(3)
         print(vaem.read_status())
-        await vaem.deselect_valve(3)
+        vaem.deselect_valve(3)
         print(vaem.read_status())
-        await vaem.select_valve(7)
+        vaem.select_valve(7)
         print(vaem.read_status())
-        await vaem.deselect_valve(7)
+        vaem.deselect_valve(7)
         print(vaem.read_status())
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(func())
+    func()
