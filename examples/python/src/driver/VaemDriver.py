@@ -8,7 +8,7 @@ __email__ = "milen.kolev@festo.com"
 __status__ = "Development"
 
 import logging
-from pymodbus.client.sync import ModbusTcpClient as TcpClient
+from pymodbus.client import ModbusTcpClient as TcpClient
 import struct
 
 from driver.dataTypes import VaemConfig
@@ -29,7 +29,7 @@ def _construct_frame(data):
     tmp = struct.pack('>BBHBBQ', data['access'], data['dataType'], data['paramIndex'], data['paramSubIndex'], data['errorRet'], data['transferValue'])
     
     for i in range(0, len(tmp)-1, 2):
-    	frame.append((tmp[i] << 8) + tmp[i+1])
+        frame.append((tmp[i] << 8) + tmp[i+1])
         
     return frame
 
@@ -121,7 +121,7 @@ class vaemDriver():
         except Exception as e:
             self._log.error(f'Something went wrong with read opperation VAEM : {e}')
 
-    async def select_valve(self, valve_id:int):
+    def select_valve(self, valve_id:int):
         """Selects one valve in the VAEM. 
         According to VAEM Logic all selected valves can be opened, 
         others cannot with open command
@@ -148,7 +148,7 @@ class vaemDriver():
         else:
             self._log.warning("No VAEM Connected!!")
 
-    async def deselect_valve(self, valve_id:int):
+    def deselect_valve(self, valve_id:int):
         """Deselects one valve in the VAEM. 
         According to VAEM Logic all selected valves can be opened, 
         others cannot with open command
@@ -176,21 +176,21 @@ class vaemDriver():
         else:
             self._log.warning("No VAEM Connected!!")
 
-    async def configure_valves(self, valve_id: int, opening_time: int):
+    def configure_valves(self, valve_id: int, opening_time: int):
         """Configure the valves with pre selected parameters"""
         data = {}
         if self._init_done:
             if (opening_time in range(0, 2000)) and (valve_id in range(0, 8)):
                 data = get_transfer_value(VaemIndex.ResponseTime, valve_id, VaemAccess.Write.value, **{"ResponseTime" : int(opening_time)})
                 frame = _construct_frame(data)
-                self.transfer(frame)
+                self._transfer(frame)
             else:
                 self._log.error(f'opening time must be in range 0-2000 and valve_id -> 1-8')
                 raise ValueError
         else:
             self._log.warning("No VAEM Connected!!")
 
-    async def open_valve(self):
+    def open_valve(self):
         """
         Start all valves that are selected
         """
@@ -218,7 +218,7 @@ class vaemDriver():
         else:
             self._log.warning("No VAEM Connected!!")
 
-    async def close_valve(self):
+    def close_valve(self):
         data = {}
         if self._init_done:
             #save settings
@@ -260,7 +260,7 @@ class vaemDriver():
             self._log.warning("No VAEM Connected!!")
             return ""
 
-    async def clear_error(self):
+    def clear_error(self):
         """
         If any error occurs in valve opening, must be cleared with this opperation.
         """
