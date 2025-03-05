@@ -310,6 +310,34 @@ class vaemDriver:
         else:
             self._log.warning("No VAEM Connected!!")
 
+    def read_valves_state(self):
+        data = {}
+        if self._init_done:
+            # get currently selected valves
+            data = get_transfer_value(
+                VaemIndex.SelectValve,
+                0,
+                VaemAccess.Read.value,
+                **{},
+            )
+            frame = _construct_frame(data)
+            resp = self._transfer(frame)
+
+            # Get states from response
+            decimal_code = _deconstruct_frame(resp)["transferValue"]
+
+            # Convert to binary and ensure it's 8 bits (pad with leading zeros if needed)
+            binary_string = format(decimal_code, '08b')
+            # Convert to list of integers and reverse to match user-expected order
+            states = [int(bit) for bit in binary_string]
+            states.reverse()
+
+            return states
+
+        else:
+            self._log.warning("No VAEM Connected!!")
+            return None
+
     def read_status(self):
         """
         Read the status of the VAEM
