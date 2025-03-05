@@ -5,12 +5,13 @@ from vaem.dataTypes import VaemConfig
 
 
 if __name__ == "__main__":
-    vaemConfig = VaemConfig('192.168.8.118', 502, 0)
+    vaemConfig = VaemConfig("192.168.8.118", 502, 0)
 
     try:
         vaem = vaemDriver(vaemConfig, logger=logging)
     except Exception as e:
         print(e)
+
     def func():
         vaem._vaem_init()
         print(vaem.read_status())
