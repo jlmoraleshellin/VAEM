@@ -8,7 +8,7 @@ __email__ = "milen.kolev@festo.com"
 __status__ = "Development"
 
 import logging
-from pymodbus.client import ModbusTcpClient as TcpClient
+from pymodbus.client.sync import ModbusTcpClient as TcpClient
 import struct
 
 from vaem.dataTypes import VaemConfig
@@ -173,6 +173,33 @@ class vaemDriver():
             else:
                 self._log.error('opening time must be in range 0-2000 and valve_id -> 1-8')
                 raise ValueError
+        else:
+            self._log.warning("No VAEM Connected!!")
+
+    def select_valves(self, states: list[int]):
+        """Select multiple valves at once by specifying states for all valves. See documentation on how to open multiple valves.
+        
+        param: valve_states - list of 8 values (0 or 1) representing valve states
+                         from left to right (valve 1 is first element, valve 8 is last)"""
+
+        # Ensure there are 8 states
+        if len(states) != 8:
+            self._log.error("Must provide 8 valve states")
+            return
+        
+        # Reverse the list to match controller's right-to-left bit ordering
+        reversed_states = states.copy()
+        reversed_states.reverse() 
+        # Convert the reversed list to a binary string, then to decimal
+        binary_string = "".join(str(state) for state in reversed_states)
+        decimal_code = int(binary_string, 2)
+
+        data = {}
+        if self._init_done:
+            # Select valves by directly writing the binary pattern
+            data = get_transfer_value(VaemIndex.SelectValve, decimal_code, VaemAccess.Write.value,**{})
+            frame = _construct_frame(data)
+            self._transfer(frame)
         else:
             self._log.warning("No VAEM Connected!!")
 
