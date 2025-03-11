@@ -8,8 +8,10 @@ __email__ = "milen.kolev@festo.com"
 __status__ = "Development"
 
 import logging
-from pymodbus.client.sync import ModbusTcpClient as TcpClient
 import struct
+import time
+
+from pymodbus.client.sync import ModbusTcpClient as TcpClient
 
 from vaem.dataTypes import VaemConfig
 from vaem.vaemHelper import *
@@ -282,6 +284,12 @@ class vaemDriver:
             frame = _construct_frame(data)
             self._transfer(frame)
 
+            # Wait for operation to finish with timeout
+            success = self.wait_for_readiness()
+            if not success:
+                # TODO raise proper error
+                raise Exception("Failed to close valve")
+            
             # reset the control word
             data["access"] = VaemAccess.Write.value
             data["dataType"] = VaemDataType.UINT16.value
@@ -307,6 +315,12 @@ class vaemDriver:
 
             frame = _construct_frame(data)
             self._transfer(frame)
+
+            # Wait for operation to finish with timeout
+            success = self.wait_for_readiness()
+            if not success:
+                # TODO raise proper error
+                raise Exception("Failed to close valve")
         else:
             self._log.warning("No VAEM Connected!!")
 
@@ -357,12 +371,30 @@ class vaemDriver:
 
             frame = _construct_frame(data)
             resp = self._transfer(frame)
-            self._log.info(get_status(_deconstruct_frame(resp)["transferValue"]))
+            #self._log.info(get_status(_deconstruct_frame(resp)["transferValue"]))
 
             return get_status(_deconstruct_frame(resp)["transferValue"])
         else:
             self._log.warning("No VAEM Connected!!")
             return ""
+        
+    def wait_for_readiness(self, timeout=5.0):
+        """
+        Wait for the device to be ready with a timeout.
+        """
+        start_time = time.time()
+        
+        while True:
+            # Check if timeout has been exceeded
+            if time.time() - start_time > timeout:
+                self._log.warning(f"Timeout waiting for device readiness after {timeout} seconds")
+                return False
+                
+            readiness = self.read_status()["Readiness"]
+            if readiness == 0:
+                time.sleep(0.1)
+            else:
+                return True
 
     def clear_error(self):
         """
