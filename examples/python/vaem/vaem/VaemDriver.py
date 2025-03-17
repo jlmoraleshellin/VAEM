@@ -68,12 +68,12 @@ class vaemDriver:
 
         self.client = TcpClient(host=self._config.ip, port=self._config.port)
 
-        for _ in range(5):
+        for _ in range(2):
             if self.client.connect():
                 break
             else:
                 self._log.warning(f"Failed to connect VAEM. Reconnecting attempt: {_}")
-            if _ == 4:
+            if _ == 1:
                 self._log.error(f"Could not connect to VAEM: {self._config}")
                 raise ConnectionError(f"Could not connect to VAEM: {self._config}")
 
@@ -251,7 +251,7 @@ class vaemDriver:
         """Configure the valves with pre selected parameters"""
         data = {}
         if self._init_done:
-            if (opening_time in range(0, 2000)) and (valve_id in range(0, 8)):
+            if (opening_time in range(0, 4294967296)) and (valve_id in range(0, 8)):
                 data = get_transfer_value(
                     VaemIndex.ResponseTime,
                     valve_id,
@@ -283,12 +283,6 @@ class vaemDriver:
             data["transferValue"] = VaemControlWords.StartValves.value
             frame = _construct_frame(data)
             self._transfer(frame)
-
-            # Wait for operation to finish with timeout
-            success = self.wait_for_readiness()
-            if not success:
-                # TODO raise proper error
-                raise Exception("Failed to close valve")
             
             # reset the control word
             data["access"] = VaemAccess.Write.value
@@ -315,12 +309,6 @@ class vaemDriver:
 
             frame = _construct_frame(data)
             self._transfer(frame)
-
-            # Wait for operation to finish with timeout
-            success = self.wait_for_readiness()
-            if not success:
-                # TODO raise proper error
-                raise Exception("Failed to close valve")
         else:
             self._log.warning("No VAEM Connected!!")
 
@@ -378,7 +366,7 @@ class vaemDriver:
             self._log.warning("No VAEM Connected!!")
             return ""
         
-    def wait_for_readiness(self, timeout=5.0):
+    def wait_for_readiness(self, timeout=10.0):
         """
         Wait for the device to be ready with a timeout.
         """
@@ -393,6 +381,8 @@ class vaemDriver:
             readiness = self.read_status()["Readiness"]
             if readiness == 0:
                 time.sleep(0.1)
+                print(readiness)
+                pass
             else:
                 return True
 
