@@ -139,21 +139,20 @@ class vaemDriver:
 
     def select_valve(self, valve_id: int):
         """Selects one valve in the VAEM.
-        According to VAEM Logic all selected valves can be opened,
-        others cannot with open command
+        According to VAEM Logic all selected valves can be opened
 
-        @param: valve_id - the id of the valve to select
+        @param: valve_id - the id of the valve to select from 1 to 8
 
         raises:
             ValueError - raised if the valve id is not supported
         """
         data = {}
         if self._init_done:
-            if valve_id in range(0, 8):
+            if valve_id in range(1, 9):
                 # get currently selected valves
                 data = get_transfer_value(
                     VaemIndex.SelectValve,
-                    vaemValveIndex[valve_id + 1],
+                    vaemValveIndex[valve_id],
                     VaemAccess.Read.value,
                     **{},
                 )
@@ -162,7 +161,7 @@ class vaemDriver:
                 # select new valve
                 data = get_transfer_value(
                     VaemIndex.SelectValve,
-                    vaemValveIndex[valve_id + 1]
+                    vaemValveIndex[valve_id]
                     | _deconstruct_frame(resp)["transferValue"],
                     VaemAccess.Write.value,
                     **{},
@@ -170,17 +169,13 @@ class vaemDriver:
                 frame = _construct_frame(data)
                 self._transfer(frame)
             else:
-                self._log.error(
-                    "opening time must be in range 0-2000 and valve_id -> 0-8"
-                )
+                self._log.error("valve_id must be between 1-8")
                 raise ValueError
         else:
             self._log.warning("No VAEM Connected!!")
 
     def deselect_valve(self, valve_id: int):
         """Deselects one valve in the VAEM.
-        According to VAEM Logic all selected valves can be opened,
-        others cannot with open command
 
         @param: valve_id - the id of the valve to select. valid numbers are from 1 to 8
 
@@ -190,11 +185,11 @@ class vaemDriver:
         pass
         data = {}
         if self._init_done:
-            if valve_id in range(0, 8):
+            if valve_id in range(1, 9):
                 # get currently selected valves
                 data = get_transfer_value(
                     VaemIndex.SelectValve,
-                    vaemValveIndex[valve_id + 1],
+                    vaemValveIndex[valve_id],
                     VaemAccess.Read.value,
                     **{},
                 )
@@ -204,16 +199,14 @@ class vaemDriver:
                 data = get_transfer_value(
                     VaemIndex.SelectValve,
                     _deconstruct_frame(resp)["transferValue"]
-                    & (~(vaemValveIndex[valve_id + 1])),
+                    & (~(vaemValveIndex[valve_id])),
                     VaemAccess.Write.value,
                     **{},
                 )
                 frame = _construct_frame(data)
                 self._transfer(frame)
             else:
-                self._log.error(
-                    "opening time must be in range 0-2000 and valve_id -> 1-8"
-                )
+                self._log.error("valve_id must be between 0-7")
                 raise ValueError
         else:
             self._log.warning("No VAEM Connected!!")
@@ -251,10 +244,10 @@ class vaemDriver:
         """Configure the valves with pre selected parameters"""
         data = {}
         if self._init_done:
-            if (opening_time in range(0, 4294967296)) and (valve_id in range(0, 8)):
+            if (opening_time in range(0, (2**32))) and (valve_id in range(1, 9)):
                 data = get_transfer_value(
                     VaemIndex.ResponseTime,
-                    valve_id,
+                    valve_id-1, # Valve id starts at 0 for settings
                     VaemAccess.Write.value,
                     **{"ResponseTime": int(opening_time)},
                 )
