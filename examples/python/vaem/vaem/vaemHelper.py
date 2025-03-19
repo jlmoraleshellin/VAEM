@@ -121,7 +121,7 @@ def get_transfer_value(param, valve, opperation, **settings):
         out["transferValue"] = settings["ResponseTime"]
     elif param == VaemIndex.InrushCurrent:
         out["access"] = opperation
-        out["dataType"] = VaemDataType.UINT32.value
+        out["dataType"] = VaemDataType.UINT16.value
         out["paramIndex"] = VaemIndex.InrushCurrent.value
         out["paramSubIndex"] = valve
         out["errorRet"] = 0
