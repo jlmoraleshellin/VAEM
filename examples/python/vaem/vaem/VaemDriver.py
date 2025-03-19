@@ -240,8 +240,47 @@ class vaemDriver:
         else:
             self._log.warning("No VAEM Connected!!")
 
-    def configure_valves(self, valve_id: int, opening_time: int):
-        """Configure the valves with pre selected parameters"""
+    def configure_valves(self, valve_id, settings: dict[VaemIndex, int]):
+        """Configure settings for a specific valve. This method allows setting various
+        parameters for a given valve.
+
+        Args:
+            valve_id: The identifier of the valve to configure
+            settings (dict[VaemIndex, int]): Dictionary mapping valve parameters to their values.
+                Keys are VaemIndex enum members and values are the parameter settings.
+
+        Examples:
+            >>> driver.configure_valves(1, {VaemIndex.ResponseTime: 100, VaemIndex.InrushCurrent: 50})
+        """
+        if self._init_done:
+            for param, value in settings.items():
+                
+                # Check if parameter is actually a setting
+                if not hasattr(VaemRanges, param.name):
+                    raise ValueError(f"VaemIndex {param.name} is not a setting")
+                
+                # Check parameter and valve ranges
+                if value in range(
+                    *getattr(VaemRanges, param.name).value
+                ) and valve_id in range(1, 9):
+                    data = get_transfer_value(
+                        param,
+                        valve_id-1, # Valve id starts at 0 for settings
+                        VaemAccess.Write.value,
+                        **{param.name: int(value)},
+                    )
+                    frame = _construct_frame(data)
+                    self._transfer(frame)
+                else:
+                    valid_range = getattr(VaemRanges, param.name).value
+                    raise ValueError(
+                        f"{param.name} must be in range {valid_range[0]} - {valid_range[1]-1} and valve_id -> 1-8"
+                    )
+        else:
+            self._log.warning("No VAEM Connected!!")
+
+    def configure_valve_response_time(self, valve_id: int, opening_time: int):
+        """Set a specific valve's response time (opening time)"""
         data = {}
         if self._init_done:
             if (opening_time in range(0, (2**32))) and (valve_id in range(1, 9)):
@@ -256,6 +295,27 @@ class vaemDriver:
             else:
                 self._log.error(
                     "opening time must be in range 0-2000 and valve_id -> 1-8"
+                )
+                raise ValueError
+        else:
+            self._log.warning("No VAEM Connected!!")
+
+    def configure_valve_inrush_current(self, valve_id: int, inrush_current: int):
+        """Set a specific valve's inrush current"""
+        data = {}
+        if self._init_done:
+            if (inrush_current in range(20, 1000)) and (valve_id in range(1, 9)):
+                data = get_transfer_value(
+                    VaemIndex.InrushCurrent,
+                    valve_id-1, # Valve id starts at 0 for settings
+                    VaemAccess.Write.value,
+                    **{"InrushCurrent": int(inrush_current)},
+                )
+                frame = _construct_frame(data)
+                self._transfer(frame)
+            else:
+                self._log.error(
+                    "inrush current must be in range 20-1000 and valve_id -> 1-8"
                 )
                 raise ValueError
         else:
@@ -276,7 +336,7 @@ class vaemDriver:
             data["transferValue"] = VaemControlWords.StartValves.value
             frame = _construct_frame(data)
             self._transfer(frame)
-            
+
             # reset the control word
             data["access"] = VaemAccess.Write.value
             data["dataType"] = VaemDataType.UINT16.value
@@ -322,7 +382,7 @@ class vaemDriver:
             decimal_code = _deconstruct_frame(resp)["transferValue"]
 
             # Convert to binary and ensure it's 8 bits (pad with leading zeros if needed)
-            binary_string = format(decimal_code, '08b')
+            binary_string = format(decimal_code, "08b")
             # Convert to list of integers and reverse to match user-expected order
             states = [int(bit) for bit in binary_string]
             states.reverse()
@@ -352,25 +412,27 @@ class vaemDriver:
 
             frame = _construct_frame(data)
             resp = self._transfer(frame)
-            #self._log.info(get_status(_deconstruct_frame(resp)["transferValue"]))
+            # self._log.info(get_status(_deconstruct_frame(resp)["transferValue"]))
 
             return get_status(_deconstruct_frame(resp)["transferValue"])
         else:
             self._log.warning("No VAEM Connected!!")
             return ""
-        
+
     def wait_for_readiness(self, timeout=10.0):
         """
         Wait for the device to be ready with a timeout.
         """
         start_time = time.time()
-        
+
         while True:
             # Check if timeout has been exceeded
             if time.time() - start_time > timeout:
-                self._log.warning(f"Timeout waiting for device readiness after {timeout} seconds")
+                self._log.warning(
+                    f"Timeout waiting for device readiness after {timeout} seconds"
+                )
                 return False
-                
+
             readiness = self.read_status()["Readiness"]
             if readiness == 0:
                 time.sleep(0.1)

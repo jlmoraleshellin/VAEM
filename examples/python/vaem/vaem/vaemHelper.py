@@ -1,4 +1,4 @@
-from enum import IntEnum
+from enum import IntEnum, Enum
 
 
 valveSettings = {
@@ -64,6 +64,15 @@ class VaemValveIndex(IntEnum):
     AllValves = 255
 """
 
+class VaemRanges(Enum):
+    NominalVoltage = (8000, 24000+1)
+    InrushCurrent = (20, 1000+1)
+    HoldingCurrent = (20, 400+1)
+    ResponseTime = (1, (2**32)-1+1)
+    PickUpTime = (1, 500+1)
+    TimeDelay = (0, (2**32)-1+1)
+    HitNHold = (0, 1000+1)
+    SelectValve = (0, 255+1)
 
 class VaemControlWords(IntEnum):
     StartValves = 0x01
