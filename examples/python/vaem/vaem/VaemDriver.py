@@ -61,7 +61,7 @@ def _deconstruct_frame(frame):
 
 
 class vaemDriver:
-    def __init__(self, vaemConfig: VaemConfig, logger: logging = logging):
+    def __init__(self, vaemConfig: VaemConfig, logger = logging.getLogger("vaem")):
         self._config = vaemConfig
         self._log = logger
         self._init_done = False
@@ -318,6 +318,36 @@ class vaemDriver:
                     "inrush current must be in range 20-1000 and valve_id -> 1-8"
                 )
                 raise ValueError
+        else:
+            self._log.warning("No VAEM Connected!!")
+
+    def read_valve_configuration(self, valve_id, setting: VaemIndex):
+        """Read settings for a specific valve. This method allows reading various
+        parameters for a given valve.
+
+        Args:
+            valve_id: The identifier of the valve to configure
+            settings (VaemIndex): VaemIndex settings to read.
+
+        Examples:
+            driver.read_valve_configuration(1, VaemIndex.ResponseTime)
+        """
+        if self._init_done:
+            # Check if parameter is actually a setting
+            if not hasattr(VaemRanges, setting.name):
+                raise ValueError(f"VaemIndex {setting.name} is not a setting")
+
+            data = get_transfer_value(
+                setting,
+                valve_id-1, # Valve id starts at 0 for settings
+                VaemAccess.Read.value,
+                **{setting.name: 0},
+            )
+            frame = _construct_frame(data)
+            resp = self._transfer(frame)
+
+            return _deconstruct_frame(resp)["transferValue"]
+
         else:
             self._log.warning("No VAEM Connected!!")
 
