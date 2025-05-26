@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "vaem"
-version = "0.0.2"
+version = "0.0.3"
 description = "Software for controlling the VAEM Festo valve control module"
 authors = ["Festo <milen.kolev@festo.com>"]
 license = "Apache-2.0"
