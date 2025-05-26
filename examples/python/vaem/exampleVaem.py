@@ -14,14 +14,14 @@ if __name__ == "__main__":
 
     def func():
         vaem._vaem_init()
-        print(vaem.read_status())
+        print(vaem.get_status())
         vaem.select_valve(3)
-        print(vaem.read_status())
+        print(vaem.get_status())
         vaem.deselect_valve(3)
-        print(vaem.read_status())
+        print(vaem.get_status())
         vaem.select_valve(7)
-        print(vaem.read_status())
+        print(vaem.get_status())
         vaem.deselect_valve(7)
-        print(vaem.read_status())
+        print(vaem.get_status())
 
     func()

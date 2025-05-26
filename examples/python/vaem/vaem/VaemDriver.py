@@ -26,6 +26,43 @@ writeParam = {
     "length": 0x07,
 }
 
+error_codes = {
+    0: "Ready for operation, no error",
+    34: "Invalid index",
+    35: "Invalid subindex",
+    36: "Read request cannot be processed",
+    37: "Write request cannot be processed",
+    41: "Specified value falls below the minimum value",
+    42: "The specified value exceeds the maximum value",
+    43: "Incorrect transfer value",
+    44: "Data type incorrect",
+    93: "General syntax error",
+    94: "Syntax error index (variable x)",
+    95: "Syntax error subindex (variable y)",
+    96: "Syntax error value",
+    97: "Command execution aborted",
+}
+
+
+def handle_error_response(func):
+    def wrapper(self: vaemDriver, *args, **kwargs):
+        if self._init_done:
+            result = func(self, *args, **kwargs)
+
+            if result is None:
+                return result
+
+            error = result["errorRet"]
+            if error != 0:
+                self._log.error(f"{error_codes[error]}")
+                self.clear_error()
+
+            return result
+        else:
+            self._log.warning("No VAEM Connected")
+
+    return wrapper
+
 
 def _construct_frame(data):
     frame = []
@@ -61,7 +98,7 @@ def _deconstruct_frame(frame):
 
 
 class vaemDriver:
-    def __init__(self, vaemConfig: VaemConfig, logger = logging.getLogger("vaem")):
+    def __init__(self, vaemConfig: VaemConfig, logger=logging.getLogger("vaem")):
         self._config = vaemConfig
         self._log = logger
         self._init_done = False
@@ -106,25 +143,8 @@ class vaemDriver:
         else:
             self._log.warning("No VAEM Connected!! CANNOT INITIALIZE")
 
-    def save_settings(self):
-        data = {}
-        frame = []
-        if self._init_done:
-            # save settings
-            data["access"] = VaemAccess.Write.value
-            data["dataType"] = VaemDataType.UINT32.value
-            data["paramIndex"] = VaemIndex.SaveParameters.value
-            data["paramSubIndex"] = 0
-            data["errorRet"] = 0
-            data["transferValue"] = 99999
-            frame = _construct_frame(data)
-            self._transfer(frame)
-        else:
-            self._log.warning("No VAEM Connected!!")
-
     # read write oppeartion is constant and custom modbus is implemented on top
-    def _transfer(self, writeData):
-        data = 0
+    def _transfer(self, writeData: list) -> list:
         try:
             data = self.client.readwrite_registers(
                 read_address=readParam["address"],
@@ -136,7 +156,25 @@ class vaemDriver:
             return data.registers
         except Exception as e:
             self._log.error(f"Something went wrong with read opperation VAEM : {e}")
+            return []
 
+    @handle_error_response
+    def save_settings(self) -> dict:
+        data = {}
+        frame = []
+
+        data["access"] = VaemAccess.Write.value
+        data["dataType"] = VaemDataType.UINT32.value
+        data["paramIndex"] = VaemIndex.SaveParameters.value
+        data["paramSubIndex"] = 0
+        data["errorRet"] = 0
+        data["transferValue"] = 99999
+        frame = _construct_frame(data)
+        resp = self._transfer(frame)
+
+        return _deconstruct_frame(resp)
+
+    @handle_error_response
     def select_valve(self, valve_id: int):
         """Selects one valve in the VAEM.
         According to VAEM Logic all selected valves can be opened
@@ -147,34 +185,33 @@ class vaemDriver:
             ValueError - raised if the valve id is not supported
         """
         data = {}
-        if self._init_done:
-            if valve_id in range(1, 9):
-                # get currently selected valves
-                data = get_transfer_value(
-                    VaemIndex.SelectValve,
-                    vaemValveIndex[valve_id],
-                    VaemAccess.Read.value,
-                    **{},
-                )
-                frame = _construct_frame(data)
-                resp = self._transfer(frame)
-                # select new valve
-                data = get_transfer_value(
-                    VaemIndex.SelectValve,
-                    vaemValveIndex[valve_id]
-                    | _deconstruct_frame(resp)["transferValue"],
-                    VaemAccess.Write.value,
-                    **{},
-                )
-                frame = _construct_frame(data)
-                self._transfer(frame)
-            else:
-                self._log.error("valve_id must be between 1-8")
-                raise ValueError
-        else:
-            self._log.warning("No VAEM Connected!!")
+        if valve_id in range(1, 9):
+            # get currently selected valves
+            data = get_transfer_value(
+                VaemIndex.SelectValve,
+                vaemValveIndex[valve_id],
+                VaemAccess.Read.value,
+                **{},
+            )
+            frame = _construct_frame(data)
+            resp = self._transfer(frame)
+            # select new valve
+            data = get_transfer_value(
+                VaemIndex.SelectValve,
+                vaemValveIndex[valve_id] | _deconstruct_frame(resp)["transferValue"],
+                VaemAccess.Write.value,
+                **{},
+            )
+            frame = _construct_frame(data)
+            resp = self._transfer(frame)
 
-    def deselect_valve(self, valve_id: int):
+            return _deconstruct_frame(resp)
+        else:
+            self._log.error("valve_id must be between 1-8")
+            raise ValueError
+
+    @handle_error_response
+    def deselect_valve(self, valve_id: int) -> dict:
         """Deselects one valve in the VAEM.
 
         @param: valve_id - the id of the valve to select. valid numbers are from 1 to 8
@@ -182,35 +219,34 @@ class vaemDriver:
         raises:
             ValueError - raised if the valve id is not supported
         """
-        pass
         data = {}
-        if self._init_done:
-            if valve_id in range(1, 9):
-                # get currently selected valves
-                data = get_transfer_value(
-                    VaemIndex.SelectValve,
-                    vaemValveIndex[valve_id],
-                    VaemAccess.Read.value,
-                    **{},
-                )
-                frame = _construct_frame(data)
-                resp = self._transfer(frame)
-                # deselect new valve
-                data = get_transfer_value(
-                    VaemIndex.SelectValve,
-                    _deconstruct_frame(resp)["transferValue"]
-                    & (~(vaemValveIndex[valve_id])),
-                    VaemAccess.Write.value,
-                    **{},
-                )
-                frame = _construct_frame(data)
-                self._transfer(frame)
-            else:
-                self._log.error("valve_id must be between 0-7")
-                raise ValueError
-        else:
-            self._log.warning("No VAEM Connected!!")
+        if valve_id in range(1, 9):
+            # get currently selected valves
+            data = get_transfer_value(
+                VaemIndex.SelectValve,
+                vaemValveIndex[valve_id],
+                VaemAccess.Read.value,
+                **{},
+            )
+            frame = _construct_frame(data)
+            resp = self._transfer(frame)
+            # deselect new valve
+            data = get_transfer_value(
+                VaemIndex.SelectValve,
+                _deconstruct_frame(resp)["transferValue"]
+                & (~(vaemValveIndex[valve_id])),
+                VaemAccess.Write.value,
+                **{},
+            )
+            frame = _construct_frame(data)
+            resp = self._transfer(frame)
 
+            return _deconstruct_frame(resp)
+        else:
+            self._log.error("valve_id must be between 1-8")
+            raise ValueError
+
+    @handle_error_response
     def select_valves(self, states: list[int]):
         """Select multiple valves at once by specifying states for all valves. See documentation on how to open multiple valves.
 
@@ -230,16 +266,17 @@ class vaemDriver:
         decimal_code = int(binary_string, 2)
 
         data = {}
-        if self._init_done:
-            # Select valves by directly writing the binary pattern
-            data = get_transfer_value(
-                VaemIndex.SelectValve, decimal_code, VaemAccess.Write.value, **{}
-            )
-            frame = _construct_frame(data)
-            self._transfer(frame)
-        else:
-            self._log.warning("No VAEM Connected!!")
 
+        # Select valves by directly writing the binary pattern
+        data = get_transfer_value(
+            VaemIndex.SelectValve, decimal_code, VaemAccess.Write.value, **{}
+        )
+        frame = _construct_frame(data)
+        resp = self._transfer(frame)
+
+        return _deconstruct_frame(resp)
+
+    # TODO refactor this method to handle errors individually
     def configure_valves(self, valve_id, settings: dict[VaemIndex, int]):
         """Configure settings for a specific valve. This method allows setting various
         parameters for a given valve.
@@ -252,75 +289,70 @@ class vaemDriver:
         Examples:
             >>> driver.configure_valves(1, {VaemIndex.ResponseTime: 100, VaemIndex.InrushCurrent: 50})
         """
-        if self._init_done:
-            for param, value in settings.items():
-                
-                # Check if parameter is actually a setting
-                if not hasattr(VaemRanges, param.name):
-                    raise ValueError(f"VaemIndex {param.name} is not a setting")
-                
-                # Check parameter and valve ranges
-                if value in range(
-                    *getattr(VaemRanges, param.name).value
-                ) and valve_id in range(1, 9):
-                    data = get_transfer_value(
-                        param,
-                        valve_id-1, # Valve id starts at 0 for settings
-                        VaemAccess.Write.value,
-                        **{param.name: int(value)},
-                    )
-                    frame = _construct_frame(data)
-                    self._transfer(frame)
-                else:
-                    valid_range = getattr(VaemRanges, param.name).value
-                    raise ValueError(
-                        f"{param.name} must be in range {valid_range[0]} - {valid_range[1]-1} and valve_id -> 1-8"
-                    )
-        else:
-            self._log.warning("No VAEM Connected!!")
+        for param, value in settings.items():
+            # Check if parameter is actually a setting
+            if not hasattr(VaemRanges, param.name):
+                raise ValueError(f"VaemIndex {param.name} is not a setting")
 
+            # Check parameter and valve ranges
+            if value in range(
+                *getattr(VaemRanges, param.name).value
+            ) and valve_id in range(1, 9):
+                data = get_transfer_value(
+                    param,
+                    valve_id - 1,  # Valve id starts at 0 for settings
+                    VaemAccess.Write.value,
+                    **{param.name: int(value)},
+                )
+                frame = _construct_frame(data)
+                resp = self._transfer(frame)
+            else:
+                valid_range = getattr(VaemRanges, param.name).value
+                raise ValueError(
+                    f"{param.name} must be in range {valid_range[0]} - {valid_range[1] - 1} and valve_id -> 1-8"
+                )
+
+    @handle_error_response
     def configure_valve_response_time(self, valve_id: int, opening_time: int):
         """Set a specific valve's response time (opening time)"""
         data = {}
-        if self._init_done:
-            if (opening_time in range(0, (2**32))) and (valve_id in range(1, 9)):
-                data = get_transfer_value(
-                    VaemIndex.ResponseTime,
-                    valve_id-1, # Valve id starts at 0 for settings
-                    VaemAccess.Write.value,
-                    **{"ResponseTime": int(opening_time)},
-                )
-                frame = _construct_frame(data)
-                self._transfer(frame)
-            else:
-                self._log.error(
-                    "opening time must be in range 0-2000 and valve_id -> 1-8"
-                )
-                raise ValueError
-        else:
-            self._log.warning("No VAEM Connected!!")
+        if (opening_time in range(0, (2**32))) and (valve_id in range(1, 9)):
+            data = get_transfer_value(
+                VaemIndex.ResponseTime,
+                valve_id - 1,  # Valve id starts at 0 for settings
+                VaemAccess.Write.value,
+                **{"ResponseTime": int(opening_time)},
+            )
+            frame = _construct_frame(data)
+            resp = self._transfer(frame)
 
+            return _deconstruct_frame(resp)
+        else:
+            self._log.error("opening time must be in range 0-2000 and valve_id -> 1-8")
+            raise ValueError
+
+    @handle_error_response
     def configure_valve_inrush_current(self, valve_id: int, inrush_current: int):
         """Set a specific valve's inrush current"""
         data = {}
-        if self._init_done:
-            if (inrush_current in range(20, 1000)) and (valve_id in range(1, 9)):
-                data = get_transfer_value(
-                    VaemIndex.InrushCurrent,
-                    valve_id-1, # Valve id starts at 0 for settings
-                    VaemAccess.Write.value,
-                    **{"InrushCurrent": int(inrush_current)},
-                )
-                frame = _construct_frame(data)
-                self._transfer(frame)
-            else:
-                self._log.error(
-                    "inrush current must be in range 20-1000 and valve_id -> 1-8"
-                )
-                raise ValueError
-        else:
-            self._log.warning("No VAEM Connected!!")
+        if (inrush_current in range(20, 1000)) and (valve_id in range(1, 9)):
+            data = get_transfer_value(
+                VaemIndex.InrushCurrent,
+                valve_id - 1,  # Valve id starts at 0 for settings
+                VaemAccess.Write.value,
+                **{"InrushCurrent": int(inrush_current)},
+            )
+            frame = _construct_frame(data)
+            resp = self._transfer(frame)
 
+            return _deconstruct_frame(resp)
+        else:
+            self._log.error(
+                "inrush current must be in range 20-1000 and valve_id -> 1-8"
+            )
+            raise ValueError
+
+    @handle_error_response
     def read_valve_configuration(self, valve_id, setting: VaemIndex):
         """Read settings for a specific valve. This method allows reading various
         parameters for a given valve.
@@ -332,68 +364,76 @@ class vaemDriver:
         Examples:
             driver.read_valve_configuration(1, VaemIndex.ResponseTime)
         """
-        if self._init_done:
-            # Check if parameter is actually a setting
-            if not hasattr(VaemRanges, setting.name):
-                raise ValueError(f"VaemIndex {setting.name} is not a setting")
+        # Check if parameter is actually a setting
+        if not hasattr(VaemRanges, setting.name):
+            raise ValueError(f"VaemIndex {setting.name} is not a setting")
 
-            data = get_transfer_value(
-                setting,
-                valve_id-1, # Valve id starts at 0 for settings
-                VaemAccess.Read.value,
-                **{setting.name: 0},
-            )
-            frame = _construct_frame(data)
-            resp = self._transfer(frame)
+        data = get_transfer_value(
+            setting,
+            valve_id - 1,  # Valve id starts at 0 for settings
+            VaemAccess.Read.value,
+            **{setting.name: 0},
+        )
+        frame = _construct_frame(data)
+        resp = self._transfer(frame)
 
-            return _deconstruct_frame(resp)["transferValue"]
+        return _deconstruct_frame(resp)
 
-        else:
-            self._log.warning("No VAEM Connected!!")
+    @handle_error_response
+    def start_valves(self):
+        """
+        Start all valves that are selected
+        """
+        data = {}
+        data["access"] = VaemAccess.Write.value
+        data["dataType"] = VaemDataType.UINT16.value
+        data["paramIndex"] = VaemIndex.ControlWord.value
+        data["paramSubIndex"] = 0
+        data["errorRet"] = 0
+        data["transferValue"] = VaemControlWords.StartValves.value
+        frame = _construct_frame(data)
+        resp = self._transfer(frame)
+
+        return _deconstruct_frame(resp)
+
+    @handle_error_response
+    def reset_control_word(self):
+        """ "Reset control word"""
+        data = {}
+        data["access"] = VaemAccess.Write.value
+        data["dataType"] = VaemDataType.UINT16.value
+        data["paramIndex"] = VaemIndex.ControlWord.value
+        data["paramSubIndex"] = 0
+        data["errorRet"] = 0
+        data["transferValue"] = 0
+        frame = _construct_frame(data)
+        resp = self._transfer(frame)
+
+        return _deconstruct_frame(resp)
 
     def open_valve(self):
         """
         Start all valves that are selected
         """
-        data = {}
-        if self._init_done:
-            # save settings
-            data["access"] = VaemAccess.Write.value
-            data["dataType"] = VaemDataType.UINT16.value
-            data["paramIndex"] = VaemIndex.ControlWord.value
-            data["paramSubIndex"] = 0
-            data["errorRet"] = 0
-            data["transferValue"] = VaemControlWords.StartValves.value
-            frame = _construct_frame(data)
-            self._transfer(frame)
+        self.open_valve()
+        # TODO add a buffer
+        self.reset_control_word()
 
-            # reset the control word
-            data["access"] = VaemAccess.Write.value
-            data["dataType"] = VaemDataType.UINT16.value
-            data["paramIndex"] = VaemIndex.ControlWord.value
-            data["paramSubIndex"] = 0
-            data["errorRet"] = 0
-            data["transferValue"] = 0
-            frame = _construct_frame(data)
-            self._transfer(frame)
-        else:
-            self._log.warning("No VAEM Connected!!")
-
+    @handle_error_response
     def close_valve(self):
         data = {}
-        if self._init_done:
-            # save settings
-            data["access"] = VaemAccess.Write.value
-            data["dataType"] = VaemDataType.UINT16.value
-            data["paramIndex"] = VaemIndex.ControlWord.value
-            data["paramSubIndex"] = 0
-            data["errorRet"] = 0
-            data["transferValue"] = VaemControlWords.StopValves.value
+        # save settings
+        data["access"] = VaemAccess.Write.value
+        data["dataType"] = VaemDataType.UINT16.value
+        data["paramIndex"] = VaemIndex.ControlWord.value
+        data["paramSubIndex"] = 0
+        data["errorRet"] = 0
+        data["transferValue"] = VaemControlWords.StopValves.value
 
-            frame = _construct_frame(data)
-            self._transfer(frame)
-        else:
-            self._log.warning("No VAEM Connected!!")
+        frame = _construct_frame(data)
+        resp = self._transfer(frame)
+
+        return _deconstruct_frame(resp)
 
     def read_valves_state(self):
         data = {}
@@ -423,31 +463,36 @@ class vaemDriver:
             self._log.warning("No VAEM Connected!!")
             return None
 
-    def read_status(self):
+    @handle_error_response
+    def _read_status_word(self):
         """
-        Read the status of the VAEM
+        Read the statusword
         The status is return as a dictionary with the following keys:
         -> status: 1 if more than 1 valve is active
         -> error: 1 if error in valves is present
         """
         data = {}
-        if self._init_done:
-            # save settings
-            data["access"] = VaemAccess.Read.value
-            data["dataType"] = VaemDataType.UINT16.value
-            data["paramIndex"] = VaemIndex.StatusWord.value
-            data["paramSubIndex"] = 0
-            data["errorRet"] = 0
-            data["transferValue"] = 0
+        # save settings
+        data["access"] = VaemAccess.Read.value
+        data["dataType"] = VaemDataType.UINT16.value
+        data["paramIndex"] = VaemIndex.StatusWord.value
+        data["paramSubIndex"] = 0
+        data["errorRet"] = 0
+        data["transferValue"] = 0
 
-            frame = _construct_frame(data)
-            resp = self._transfer(frame)
-            # self._log.info(get_status(_deconstruct_frame(resp)["transferValue"]))
+        frame = _construct_frame(data)
+        resp = self._transfer(frame)
 
-            return get_status(_deconstruct_frame(resp)["transferValue"])
-        else:
-            self._log.warning("No VAEM Connected!!")
-            return ""
+        return _deconstruct_frame(resp)
+
+    def get_status(self):
+        """
+        Get the status of the VAEM
+        The status is return as a dictionary with the following keys:
+        -> status: 1 if more than 1 valve is active
+        -> error: 1 if error in valves is present
+        """
+        return get_status(self._read_status_word())
 
     def wait_for_readiness(self, timeout=10.0):
         """
@@ -463,7 +508,7 @@ class vaemDriver:
                 )
                 return False
 
-            readiness = self.read_status()["Readiness"]
+            readiness = self.get_status()["Readiness"]
             if readiness == 0:
                 time.sleep(0.1)
                 print(readiness)
@@ -471,19 +516,19 @@ class vaemDriver:
             else:
                 return True
 
+    @handle_error_response
     def clear_error(self):
         """
         If any error occurs in valve opening, must be cleared with this opperation.
         """
-        if self._init_done:
-            data = {}
-            data["access"] = VaemAccess.Write.value
-            data["dataType"] = VaemDataType.UINT16.value
-            data["paramIndex"] = VaemIndex.ControlWord.value
-            data["paramSubIndex"] = 0
-            data["errorRet"] = 0
-            data["transferValue"] = VaemControlWords.ResetErrors.value
-            frame = _construct_frame(data)
-            self._transfer(frame)
-        else:
-            self._log.warning("No VAEM Connected!!")
+        data = {}
+        data["access"] = VaemAccess.Write.value
+        data["dataType"] = VaemDataType.UINT16.value
+        data["paramIndex"] = VaemIndex.ControlWord.value
+        data["paramSubIndex"] = 0
+        data["errorRet"] = 0
+        data["transferValue"] = VaemControlWords.ResetErrors.value
+        frame = _construct_frame(data)
+        resp = self._transfer(frame)
+
+        return _deconstruct_frame(resp)
